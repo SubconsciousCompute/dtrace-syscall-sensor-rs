@@ -3,13 +3,13 @@ use libdtrace_rs::wrapper::dtrace_hdl;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
-pub type Record = (usize, String, i32, String);
+pub type Record = (usize, String, i32, String, i32);
 
 static PROGRAM: &str = r#"
     syscall:::entry
     /pid != $pid/
     {
-        printf("%llu %s %d %s", timestamp, probefunc, pid, execname);
+        printf("%llu %s %d %s %d", timestamp, probefunc, pid, execname, ppid);
     }
 "#;
 
@@ -84,8 +84,8 @@ fn main() {
     loop {
         match rx.recv() {
             Ok(record) => println!(
-                "Recieved: ts={}, syscall={}, pid={}, process={}",
-                record.0, record.1, record.2, record.3
+                "Recieved: ts={}, syscall={}, pid={}, process={}, parent_pid={}",
+                record.0, record.1, record.2, record.3, record.4
             ),
             Err(e) => panic!("{e}"),
         }

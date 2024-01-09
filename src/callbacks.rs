@@ -12,8 +12,9 @@ pub unsafe extern "C" fn buffered(
     let syscall_name = record[1].to_string();
     let pid = record[2].parse::<i32>().unwrap();
     let process_name = record[3].to_string();
+    let ppid = record[4].parse::<i32>().unwrap();
 
-    tx.send((timestamp, syscall_name, pid, process_name))
+    tx.send((timestamp, syscall_name, pid, process_name, ppid))
         .expect("Failed to send record");
 
     libdtrace_rs::DTRACE_HANDLE_OK as ::core::ffi::c_int
