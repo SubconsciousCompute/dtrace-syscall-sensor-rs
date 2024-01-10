@@ -1,11 +1,13 @@
 mod callbacks;
+use libdtrace_rs::types::dtrace_handler::Buffered;
+use libdtrace_rs::utils::Error;
 use libdtrace_rs::wrapper::dtrace_hdl;
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 pub type Record = (usize, String, i32, String, i32);
 
-static PROGRAM: &str = r#"
+static PROGRAM: &str =
+r#"
     syscall:::entry
     /pid != $pid/
     {
@@ -16,49 +18,28 @@ static PROGRAM: &str = r#"
 fn main() {
     let (tx, rx): (Sender<Record>, Receiver<Record>) = mpsc::channel();
 
-    thread::spawn(move || {
+    thread::spawn(move || -> Result<(), Error> {
         let handle =
-            match dtrace_hdl::dtrace_open(libdtrace_rs::DTRACE_VERSION as ::core::ffi::c_int, 0) {
-                Ok(handle) => handle,
-                Err(e) => panic!("{e}"),
-            };
+            dtrace_hdl::dtrace_open(libdtrace_rs::DTRACE_VERSION as ::core::ffi::c_int, 0)?;
 
-        match handle.dtrace_setopt("bufsize", "4m") {
-            Ok(_) => (),
-            Err(e) => panic!("{e}"),
-        };
+        handle.dtrace_setopt("bufsize", "4m")?;
+        handle.dtrace_setopt("aggsize", "4m")?;
 
-        match handle.dtrace_setopt("aggsize", "4m") {
-            Ok(_) => (),
-            Err(e) => panic!("{e}"),
-        };
+        handle.dtrace_register_handler(
+            Buffered(Some(callbacks::buffered)),
+            Some(&tx as *const _ as *mut _),
+        )?;
 
-        match handle
-            .dtrace_handle_buffered(Some(callbacks::buffered), Some(&tx as *const _ as *mut _))
-        {
-            Ok(_) => (),
-            Err(e) => panic!("{e}"),
-        };
-
-        let prog = match handle.dtrace_program_strcompile(
+        let prog = handle.dtrace_program_strcompile(
             PROGRAM,
             libdtrace_rs::dtrace_probespec::DTRACE_PROBESPEC_NAME,
             libdtrace_rs::DTRACE_C_ZDEFS,
             None,
-        ) {
-            Ok(prog) => prog,
-            Err(e) => panic!("{e}"),
-        };
+        )?;
 
-        match handle.dtrace_program_exec(prog, None) {
-            Ok(_) => (),
-            Err(e) => panic!("{e}"),
-        };
+        handle.dtrace_program_exec(prog, None)?;
 
-        match handle.dtrace_go() {
-            Ok(_) => (),
-            Err(e) => panic!("{e}"),
-        };
+        handle.dtrace_go()?;
 
         loop {
             handle.dtrace_sleep();
@@ -75,10 +56,9 @@ fn main() {
             }
         }
 
-        match handle.dtrace_stop() {
-            Ok(_) => (),
-            Err(e) => panic!("{e}"),
-        };
+        handle.dtrace_stop()?;
+
+        Ok(())
     });
 
     loop {
