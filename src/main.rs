@@ -9,16 +9,16 @@ pub type Record = (usize, String, i32, String, i32);
 static PROGRAM: &str =
 r#"
     syscall:::entry
-    /pid != $pid/
+    /pid != $pid /
     {
         printf("%llu %s %d %s %d", timestamp, probefunc, pid, execname, ppid);
     }
 "#;
 
-fn main() {
+fn main() -> Result<(), Error> {
     let (tx, rx): (Sender<Record>, Receiver<Record>) = mpsc::channel();
 
-    thread::spawn(move || -> Result<(), Error> {
+    let sender = thread::spawn(move || -> Result<(), Error> {
         let handle =
             dtrace_hdl::dtrace_open(libdtrace_rs::DTRACE_VERSION as ::core::ffi::c_int, 0)?;
 
@@ -41,7 +41,8 @@ fn main() {
 
         handle.dtrace_go()?;
 
-        loop {
+        let mut done = false;
+        while !done {
             handle.dtrace_sleep();
             match handle.dtrace_work(
                 None,
@@ -49,10 +50,8 @@ fn main() {
                 Some(libdtrace_rs::callbacks::chew_rec),
                 None,
             ) {
-                Ok(libdtrace_rs::dtrace_workstatus_t::DTRACE_WORKSTATUS_DONE) => break,
-                Ok(libdtrace_rs::dtrace_workstatus_t::DTRACE_WORKSTATUS_OKAY) => (),
-                Ok(libdtrace_rs::dtrace_workstatus_t::DTRACE_WORKSTATUS_ERROR) => unreachable!(),
-                Err(e) => (),
+                Ok(libdtrace_rs::dtrace_workstatus_t::DTRACE_WORKSTATUS_DONE) => done = true,
+                Ok(_) | Err(_) => (),
             }
         }
 
@@ -61,13 +60,24 @@ fn main() {
         Ok(())
     });
 
-    loop {
-        match rx.recv() {
-            Ok(record) => println!(
-                "Recieved: ts={}, syscall={}, pid={}, process={}, parent_pid={}",
-                record.0, record.1, record.2, record.3, record.4
-            ),
-            Err(e) => panic!("{e}"),
+    let reciever = thread::spawn(move || {
+        loop {
+            match rx.recv() {
+                Ok(record) => {
+                    println!(
+                        "timestamp={} syscall={} pid={} process={} parent_pid={}",
+                        record.0, record.1, record.2, record.3, record.4
+                    );
+                }
+                Err(_) => break,
+            }
         }
-    }
+    });
+
+    sender.join()
+        .expect("The sender thread has panicked")?;
+    reciever.join()
+        .expect("The reciever thread has panicked");
+
+    Ok(())
 }
