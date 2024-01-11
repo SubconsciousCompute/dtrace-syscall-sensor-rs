@@ -6,4 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ctrlc = "3.4.2"
 libdtrace-rs = {git = "https://github.com/SubconsciousCompute/libdtrace-rs"}
