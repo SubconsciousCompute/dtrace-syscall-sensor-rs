@@ -128,7 +128,7 @@ checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
 [[package]]
 name = "libdtrace-rs"
 version = "0.1.0"
-source = "git+https://github.com/SubconsciousCompute/libdtrace-rs#5106e421f7b0dffa398ae2912cdbd2ce1c8bd638"
+source = "git+https://github.com/SubconsciousCompute/libdtrace-rs#6f56b3edab5830c4cb918496ec8b782ef72bd84a"
 dependencies = [
  "bindgen",
 ]
