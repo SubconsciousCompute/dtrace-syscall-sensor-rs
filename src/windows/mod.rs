@@ -1,8 +1,25 @@
 pub mod callbacks;
+use crate::{Record, Sensor};
+use std::sync::mpsc::{Sender, Receiver};
+use libdtrace_rs::wrapper::dtrace_hdl;
+
+impl Sensor for dtrace_hdl {
+    fn new() -> Self {
+        todo!()
+    }
+
+    fn start(&mut self, channel: Sender<Record>) {
+        
+    }
+
+    fn stop(&mut self) {
+
+    }
+}
+
 
 // use libdtrace_rs::types::dtrace_handler::Buffered;
 // use libdtrace_rs::utils::Error;
-// use libdtrace_rs::wrapper::dtrace_hdl;
 
 // static PROGRAM: &str = r#"
 //     syscall:::entry
