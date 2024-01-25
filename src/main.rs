@@ -1,12 +1,10 @@
 #[cfg(target_family = "unix")]
 mod linux;
+mod utils;
 #[cfg(target_family = "windows")]
 mod windows;
 
-use std::{
-    sync::mpsc::Receiver,
-    thread,
-};
+use std::{sync::mpsc::Receiver, thread};
 
 pub struct Record {
     timestamp: usize,
@@ -25,14 +23,16 @@ fn main() {
     #[cfg(target_family = "windows")]
     let mut sensor = libdtrace_rs::wrapper::dtrace_hdl::init();
 
+    #[cfg(target_family = "unix")]
+    let mut sensor = linux::Sensor::new();
+
     let process_tracker = sensor.get_process_tracker();
 
-    thread::spawn(move || {
+    let sender_thread = thread::spawn(move || {
         sensor.start();
-        sensor.stop();
     });
 
-    loop {
+    let reciever_thread = thread::spawn(move || loop {
         match process_tracker.try_recv() {
             Ok(record) => {
                 println!(
@@ -42,5 +42,8 @@ fn main() {
             }
             Err(_) => break,
         }
-    }
+    });
+
+    sender_thread.join().unwrap();
+    reciever_thread.join().unwrap();
 }
