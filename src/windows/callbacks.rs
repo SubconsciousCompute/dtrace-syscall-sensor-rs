@@ -1,4 +1,4 @@
-pub unsafe extern "C" fn buffered(
+pub unsafe extern "C" fn process_tracker_buffered(
     bufdata: *const libdtrace_rs::dtrace_bufdata_t,
     arg: *mut ::core::ffi::c_void,
 ) -> ::core::ffi::c_int {
@@ -13,8 +13,7 @@ pub unsafe extern "C" fn buffered(
     let pid = record[2].parse::<i32>().unwrap();
     let process_name = record[3].to_string();
     let ppid = record[4].parse::<i32>().unwrap();
-
-    tx.send((timestamp, syscall_name, pid, process_name, ppid))
+    tx.send(crate::Record { timestamp, pid })
         .expect("Failed to send record");
 
     libdtrace_rs::DTRACE_HANDLE_OK as ::core::ffi::c_int
