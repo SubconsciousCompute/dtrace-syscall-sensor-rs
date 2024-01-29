@@ -4,9 +4,10 @@
 #define TASK_COMM_LEN 16
 struct exec_event
 {
-    int pid;
-    int ppid;
+    uint pid;
+    uint ppid;
     int exit_code;
+    u64 timestamp;
     char comm[TASK_COMM_LEN];
     char filename[512];
 };

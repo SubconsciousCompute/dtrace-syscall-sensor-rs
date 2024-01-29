@@ -39,6 +39,7 @@ int syscall_execve_probe(struct trace_event_raw_sys_enter *ctx)
     if (!event)
         return 0;
     
+    event->timestamp = bpf_ktime_get_boot_ns();
     task = (struct task_struct *)bpf_get_current_task();
     start_time = BPF_CORE_READ(task, start_time);
     event->pid = pid;
