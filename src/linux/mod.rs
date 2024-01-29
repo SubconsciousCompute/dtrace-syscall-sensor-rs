@@ -23,17 +23,17 @@ pub struct Handle<'a> {
 }
 
 impl<'a> Handle<'a> {
-  pub fn init() -> Result<Self, ()> {
+  pub fn init() -> Self {
     let skel_builder = SensorSkelBuilder::default();
     let open_skel = skel_builder.open().unwrap();
 
     let mut skel = open_skel.load().unwrap();
     skel.attach().unwrap();
 
-    Ok (Handle {
+    Handle {
       skel: skel,
       rb: None,
-    })
+    }
   }
 }
 

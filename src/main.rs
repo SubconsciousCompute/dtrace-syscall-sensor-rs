@@ -19,12 +19,14 @@ pub trait Sensor {
 }
 
 fn main() {
-    let mut handle = Handle::init().unwrap();
+    let mut handle = Handle::init();
 
     let tracker = handle.get_process_tracker();
 
     thread::spawn(move || {
         handle.start();
+        #[cfg(target_family = "windows")]
+        handle.stop();
     });
 
     loop {
