@@ -1,85 +1,38 @@
-mod callbacks;
-use libdtrace_rs::types::dtrace_handler::Buffered;
-use libdtrace_rs::utils::Error;
-use libdtrace_rs::wrapper::dtrace_hdl;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::thread;
-pub type Record = (usize, String, i32, String, i32);
+use std::{sync::mpsc::Receiver, thread};
 
-static PROGRAM: &str = r#"
-    syscall:::entry
-    /pid != $pid /
-    {
-        printf("%llu %s %d %s %d", timestamp, probefunc, pid, execname, ppid);
-    }
-"#;
+mod utils;
+use utils::Record;
+#[cfg(target_family = "unix")]
+mod linux;
+#[cfg(target_family = "unix")]
+use linux::Handle;
 
-fn main() -> Result<(), Error> {
-    let (tx, rx): (Sender<Record>, Receiver<Record>) = mpsc::channel();
-    let done = Arc::new(AtomicBool::new(false));
-    let (sender_done, interrupt) = (done.clone(), done.clone());
-    ctrlc::set_handler(move || {
-        interrupt.store(true, std::sync::atomic::Ordering::SeqCst);
-    }).expect("Failed to set interrupt handler");
+#[cfg(target_family = "windows")]
+mod windows;
+#[cfg(target_family = "windows")]
+use windows::Handle;
 
-    let handle = dtrace_hdl::dtrace_open(libdtrace_rs::DTRACE_VERSION as ::core::ffi::c_int, 0)?;
+pub trait Sensor {
+    fn get_process_tracker(&mut self) -> Receiver<Record>;
+    fn start(&self);
+    fn stop(&self);
+}
 
-    handle.dtrace_setopt("bufsize", "4m")?;
-    handle.dtrace_setopt("aggsize", "4m")?;
-    handle.dtrace_setopt("aggrate", "1s")?;
-    handle.dtrace_setopt("switchrate", "1s")?;
-    handle.dtrace_setopt("statusrate", "1s")?;
+fn main() {
+    let mut handle = Handle::init();
 
-    handle.dtrace_register_handler(
-        Buffered(Some(callbacks::buffered)),
-        Some(&tx as *const _ as *mut _),
-    )?;
+    let tracker = handle.get_process_tracker();
 
-    let prog = handle.dtrace_program_strcompile(
-        PROGRAM,
-        libdtrace_rs::dtrace_probespec::DTRACE_PROBESPEC_NAME,
-        libdtrace_rs::DTRACE_C_ZDEFS,
-        None,
-    )?;
-
-    handle.dtrace_program_exec(prog, None)?;
-
-    handle.dtrace_go()?;
-
-    let sender = thread::spawn(move || -> Result<(), Error> {
-        while !done.load(std::sync::atomic::Ordering::SeqCst) {
-            handle.dtrace_sleep();
-            match handle.dtrace_work(
-                None,
-                Some(libdtrace_rs::callbacks::chew),
-                Some(libdtrace_rs::callbacks::chew_rec),
-                None,
-            ) {
-                Ok(libdtrace_rs::dtrace_workstatus_t::DTRACE_WORKSTATUS_DONE) => done.store(true, std::sync::atomic::Ordering::SeqCst),
-                Ok(_) | Err(_) => (),
-            }
-        }
-
-        handle.dtrace_stop()?;
-        Ok(())
+    thread::spawn(move || {
+        handle.start();
+        #[cfg(target_family = "windows")]
+        handle.stop();
     });
 
-    while !sender_done.load(std::sync::atomic::Ordering::SeqCst) {
-        match rx.recv() {
-            Ok(record) => {
-                println!(
-                    "timestamp={} syscall={} pid={} process={} parent_pid={}",
-                    record.0, record.1, record.2, record.3, record.4
-                );
-            }
+    loop {
+        match tracker.recv() {
+            Ok(record) => println!("{:?}", record),
             Err(_) => break,
         }
     }
-
-    sender.join()
-          .expect("The sender thread has panicked")?;
-
-    Ok(())
 }

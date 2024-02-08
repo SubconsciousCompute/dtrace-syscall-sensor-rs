@@ -1,0 +1,10 @@
+build-job:
+  image: fedora:latest
+  stage: build
+  before_script:
+    - dnf install -y cargo rust elfutils-libelf-devel clang
+  script:
+    - cargo build --release
+  artifacts:
+    paths:
+      - target/release/syscall-sensor
